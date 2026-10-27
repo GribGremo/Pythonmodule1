@@ -9,48 +9,54 @@ class Plant:
     def __init__(
             self,
             name: str = "DefaultName",
-            height: float = 1,
-            age_in_days: int = 1) -> None:
+            initial_height: float = 1,
+            initial_age: int = 1,
+            ) -> None:
         if name not in self.growth_behavior:
             growth = float(input(f"Unknown plant({name}), please define her growth per day: "))
             self.growth_behavior[name] = growth
         self.name = name
-        self.height = height
-        self.age_in_days = age_in_days
+        self.initial_height = initial_height
+        self.initial_age = initial_age
+        self.current_height = initial_height
+        self.current_age = initial_age
 
     def show(self) -> None:
         print(
             f"{self.name.capitalize()}: "
-            f"{self.height}cm, "
-            f"{self.age_in_days} days old"
+            f"{self.current_height}cm, "
+            f"{self.current_age} days old "
             f"({self.growth_behavior[self.name]}cm per day)"
         )
 
-    def grow(self) -> None:
-        self.height = round(self.height + self.growth_behavior[self.name], 1)
-
-    def age(self, days : int) -> None:
-        period = range(1, days)
-        for x in period:
-            self.grow()
+    def sim_week(self):
+        self.show()
+        r = range(1, 8)
+        for x in r:
             print(f"=== Day {x} ===")
+            self.grow()
+            self.age()
             self.show()
-            self.age_in_days += 1
+        print(f"Growth this week: {round(self.current_height - self.initial_height, 1)}cm")
+
+    def grow(self) -> None:
+        self.current_height = round(self.current_height + self.growth_behavior[self.name], 1)
+
+    def age(self) -> None:
+        self.current_age += 1
 
 
 
 def main() -> None:
-    plant_a = Plant("Rose", 3, 2)
+    plant_a = Plant("Rose", 25, 30)
     plant_b = Plant("Sunflower", 30, 7)
     plant_c = Plant("Cactus", 5, 4)
     plant_d = Plant("Dandelion", 10, 25)
     print("=== Garden Plant Growth ===")
-    plant_a.age(4)
-    plant_b.age(4)
-    plant_c.age(4)
-    plant_d.age(4)
-
-
+    plant_a.sim_week()
+    plant_b.sim_week()
+    plant_c.sim_week()
+    plant_d.sim_week()
 
 
 if __name__ == "__main__":
