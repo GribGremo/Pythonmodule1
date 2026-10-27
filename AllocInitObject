@@ -1,0 +1,200 @@
+Peux tu m'en dire plus je ne connais pas les mecanismes de creation d'une instance, elle va faire un new et une allocation implicitement?
+
+
+Oui \! Et c'est un excellent sujet à comprendre, parce que ça explique beaucoup de choses en Python, notamment pourquoi un objet peut exister en mémoire alors que son initialisation a échoué.
+
+Quand tu écris :
+
+python
+
+```
+plant = Plant("Rose", 10)
+```
+
+tu as l'impression que Python appelle le constructeur `Plant`. En réalité, la création d'une instance se déroule en plusieurs étapes, et Python orchestre tout cela pour toi.
+
+## 1. Le cycle de vie d'une instance
+
+### 1. `Plant("Rose", 10)`
+
+Tu demandes une nouvelle instance
+
+### 2. `Plant.__new__(Plant, ...)`
+
+Python obtient un nouvel objet, généralement en allouant la mémoire nécessaire.
+
+### 3. `Plant.__init__(self, ...)`
+
+Python initialise l'objet : attributs, validations, etc.
+
+### 4. L'instance est renvoyée
+
+L'affectation à `plant` peut avoir lieu.
+
+Dans le cas habituel, oui : Python déclenche implicitement l'allocation de l'objet, puis son initialisation. Tu n'as normalement pas besoin d'appeler toi-même `__new__` ou `__init__`.
+
+Il y a cependant une nuance importante : `__new__` ne se contente pas d'allouer de la mémoire. Il doit retourner l'objet qui sera éventuellement initialisé.
+
+## 2. Vérifions l'ordre d'exécution avec un exemple
+
+Tu peux observer toi-même les deux méthodes :
+
+python
+
+```
+class Plant:
+    def __new__(cls, *args, **kwargs):
+        print("1. __new__: création")
+        instance = super().__new__(cls)
+        print("2. __new__: objet obtenu")
+        return instance
+
+    def __init__(self, name, height):
+        print("3. __init__: initialisation")
+        self.name = name
+        self.height = height
+        print("4. __init__: terminé")
+
+plant = Plant("Rose", 10)
+print("5. Objet disponible :", plant.name)
+```
+
+Résultat :
+
+text
+
+```
+1. __new__: création
+2. __new__: objet obtenu
+3. __init__: initialisation
+4. __init__: terminé
+5. Objet disponible : Rose
+```
+
+Regarde cette ligne :
+
+python
+
+```
+instance = super().__new__(cls)
+```
+
+C'est ici que tu demandes à la classe parente `object` de créer une instance de `Plant`. Dans le cas habituel, c'est le mécanisme standard de création d'objet.
+
+Et ici :
+
+python
+
+```
+return instance
+```
+
+Tu renvoies l'objet nouvellement créé. Python peut alors appeler `__init__` sur cet objet.
+
+Tu n'as généralement pas besoin de redéfinir `__new__` : son implémentation héritée fait déjà le travail nécessaire. La documentation officielle détaille ce fonctionnement dans le [modèle de données Python](<https://docs.python.org/3/reference/datamodel.html?utm_source=chatgpt.com#object.__new__>).
+
+Python 3.15.0 documentation
+
+## 3. Mais alors, qui appelle `__new__` ?
+
+C'est le point le plus intéressant \!
+
+Quand tu écris :
+
+python
+
+```
+plant = Plant("Rose", 10)
+```
+
+tu n'appelles pas directement `Plant.__init__()`.
+
+Tu appelles la classe elle-même, qui est un objet appelable. Pour une classe ordinaire, cet appel passe par le mécanisme de construction fourni par sa métaclasse, généralement `type`.
+
+Schématiquement, le mécanisme ressemble à ceci :
+
+python
+
+```
+# Pseudo-code explicatif, pas le code réel de Python
+
+def construire_classe(cls, *args, **kwargs):
+    instance = cls.__new__(cls, *args, **kwargs)
+
+    if isinstance(instance, cls):
+        cls.__init__(instance, *args, **kwargs)
+
+    return instance
+```
+
+Ce pseudo-code illustre l'idée, mais l'implémentation réelle est plus subtile, notamment avec l'héritage et les métaclasses.
+
+Autrement dit, Python orchestre l'appel à `__new__`, puis celui à `__init__` si l'objet retourné est une instance appropriée de la classe.
+
+Python 3.15.0 documentation
+
+## 4. Que se passe-t-il si `__init__` échoue ?
+
+Modifions légèrement l'exemple :
+
+python
+
+```
+class Plant:
+    def __new__(cls):
+        print("Création")
+        return super().__new__(cls)
+
+    def __init__(self):
+        print("Initialisation")
+        raise ValueError("Impossible d'initialiser la plante")
+
+plant = Plant()
+```
+
+L'affichage sera :
+
+text
+
+```
+Création
+Initialisation
+ValueError: Impossible d'initialiser la plante
+```
+
+La création a eu lieu, mais l'initialisation a échoué.
+
+La variable `plant` n'est pas affectée par cette instruction. Si l'objet n'a été conservé nulle part ailleurs, il pourra être récupéré par le mécanisme de gestion mémoire.
+
+En revanche, si tu conserves une référence à l'objet dès `__new__`, ou si tu l'enregistres dans une collection globale avant l'exception, il peut rester accessible malgré l'échec de `__init__`.
+
+C'est pour cela qu'il vaut mieux éviter de rendre un objet partiellement initialisé accessible depuis l'extérieur.
+
+## 5. Pourquoi `__new__` existe-t-il si `__init__` suffit presque toujours ?
+
+Il devient particulièrement utile lorsque tu veux contrôler l'identité ou la nature même de l'objet créé, plutôt que simplement initialiser ses attributs.
+
+Par exemple, `int`, `str` et `tuple` sont des types immuables. Tu ne peux pas créer un entier vide puis lui affecter sa valeur plus tard comme tu le ferais avec un attribut classique. La personnalisation de `__new__` permet notamment de contrôler la création de ces objets.
+
+Pour une classe de plantes ordinaire, tu utiliseras presque toujours simplement :
+
+python
+
+```
+class Plant:
+    def __init__(self, name: str, height: float):
+        self.name = name
+        self.height = height
+```
+
+Pas besoin de toucher à `__new__`.
+
+## À retenir
+
+- `Plant(...)` déclenche le mécanisme de construction de la classe.
+- `__new__` obtient une nouvelle instance.
+- `__init__` initialise cette instance.
+- Si `__init__` lève une exception, la construction échoue et l'appelant ne récupère pas normalement l'objet.
+- La mémoire et les effets secondaires ne sont pas automatiquement annulés.
+
+Le meilleur modèle mental : `__new__` te donne l'objet ; `__init__` prépare cet objet pour qu'il soit utilisable. 🌱
